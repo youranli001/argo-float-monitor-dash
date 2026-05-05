@@ -40,72 +40,169 @@ warnings.filterwarnings("ignore")
 
 
 
-# ── GDAC download helpers (FTP: ftp.ifremer.fr) ───────────────────────────────
-from ftplib import FTP
+# ── GDAC download helpers (HTTPS, multi-mirror) ───────────────────────────────
+# We use HTTPS instead of the historical FTP endpoint because:
+#   1. Cloud platforms (Render, Heroku, etc.) heavily restrict outbound FTP —
+#      port 21 is sometimes allowed, but FTP passive-mode data transfer needs
+#      a range of dynamic high ports that egress firewalls almost always block.
+#   2. The IFREMER GDAC HTTPS server (data-argo.ifremer.fr) serves the exact
+#      same directory structure as the FTP server. argopy (the official Argo
+#      Python library) defaults to HTTPS for the same reason.
+#
+# Both Argo GDAC mirrors are tried in order — if IFREMER (France) is unreachable
+# from the deployment region, US GODAE serves the same data.
+import ssl
+import urllib.request
+import urllib.error
 
-FTP_HOST   = "ftp.ifremer.fr"
-FTP_BASE   = "/ifremer/argo/dac"
-DAC_ORDER  = ["aoml", "pmel", "coriolis", "meds", "nmdis",
+# On Windows + Anaconda Python, the default urllib SSL context cannot find a
+# trusted-CA bundle and HTTPS verification fails with "unable to get local
+# issuer certificate". The certifi package ships Mozilla's CA bundle and
+# fixes this. On Linux/Mac with system Python this isn't strictly necessary,
+# but using certifi is harmless and gives consistent behavior across platforms.
+try:
+    import certifi
+    _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    # Fall back to default if certifi isn't installed (e.g. older deploys).
+    _SSL_CONTEXT = ssl.create_default_context()
+
+
+GDAC_MIRRORS = [
+    # (label, root URL where /dac/<dac>/<wmo>/<file>.nc lives)
+    ("IFREMER",  "https://data-argo.ifremer.fr/dac"),
+    ("US GODAE", "https://usgodae.org/ftp/outgoing/argo/dac"),
+]
+DAC_ORDER  = ["aoml", "coriolis", "pmel", "meds", "nmdis",
                "incois", "kordi", "bodc", "csio", "kma", "jma"]
 FLOAT_FILES = ["_prof.nc", "_Sprof.nc", "_meta.nc", "_tech.nc",
                "_Dtraj.nc", "_Rtraj.nc"]
 CACHE_DIR  = os.path.join(os.path.expanduser("~"), ".argo_cache")
 
+# Browser-like User-Agent — some servers reject default urllib UA.
+_HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; argo-float-monitor-dash/1.0; "
+        "+https://github.com/youranli001/argo-float-monitor-dash)"
+    )
+}
+
+
+def _http_url_exists(url: str, timeout: int = 10) -> bool:
+    """HEAD probe: returns True iff the URL is reachable (HTTP 200)."""
+    req = urllib.request.Request(url, method="HEAD", headers=_HTTP_HEADERS)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout,
+                                    context=_SSL_CONTEXT) as resp:
+            return resp.status == 200
+    except urllib.error.HTTPError:
+        return False
+    except Exception:
+        return False
+
 
 # (removed @st.cache_data decorator)
 def find_dac_ftp(wmo: str) -> str | None:
-    """Connect to IFREMER FTP and try each DAC to locate the float."""
-    try:
-        ftp = FTP(FTP_HOST, timeout=15)
-        ftp.login()
+    """Probe each DAC's HTTPS directory to locate the float.
+
+    The function name is kept for backwards compatibility; the implementation
+    no longer uses FTP. Tries IFREMER first, then US GODAE if IFREMER is
+    unreachable. Returns the DAC code (e.g. 'aoml') or None.
+    """
+    for mirror_label, mirror_root in GDAC_MIRRORS:
         for dac in DAC_ORDER:
-            try:
-                ftp.cwd(f"{FTP_BASE}/{dac}/{wmo}")
-                ftp.quit()
+            # Probe by HEAD-requesting the meta file specifically — this is
+            # the smallest standard file and is guaranteed to exist for every
+            # active float.
+            url = f"{mirror_root}/{dac}/{wmo}/{wmo}_meta.nc"
+            if _http_url_exists(url):
                 return dac
-            except Exception:
-                continue
-        ftp.quit()
-    except Exception:
-        pass
     return None
+
+
+def _download_one(url: str, local_path: str, timeout: int = 120) -> None:
+    """Download a single file via HTTPS, streaming to disk in chunks.
+
+    Raises urllib.error.HTTPError or other exceptions on failure.
+    """
+    req = urllib.request.Request(url, headers=_HTTP_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout,
+                                context=_SSL_CONTEXT) as resp, \
+         open(local_path, "wb") as f:
+        while True:
+            chunk = resp.read(256 * 1024)  # 256 KB chunks
+            if not chunk:
+                break
+            f.write(chunk)
 
 
 def download_float_files(wmo: str, dac: str, dest: str,
                          progress_callback=None) -> list[str]:
-    """Download all standard files via FTP to dest/.
+    """Download all standard NetCDF files for a float via HTTPS.
 
-    progress_callback: optional callable(fraction, text) for progress updates.
-    Raises RuntimeError on FTP failure (caller should handle).
+    Tries each GDAC mirror in turn for each file. progress_callback is an
+    optional callable(fraction, text) for progress updates.
+
+    Per-file failures (404, etc.) are recorded in the returned list, not
+    raised. RuntimeError is raised only if every file fails on every mirror.
     """
     os.makedirs(dest, exist_ok=True)
     saved = []
     n = len(FLOAT_FILES)
-    try:
-        ftp = FTP(FTP_HOST, timeout=60)
-        ftp.login()
-        ftp.cwd(f"{FTP_BASE}/{dac}/{wmo}")
-        remote_files = ftp.nlst()
-        for i, suffix in enumerate(FLOAT_FILES):
-            fname = wmo + suffix
-            local = os.path.join(dest, fname)
-            if progress_callback is not None:
-                progress_callback((i + 1) / n, fname)
-            if os.path.exists(local):
-                saved.append(fname + " (cached)")
-                continue
-            if fname not in remote_files:
-                saved.append(fname + " (not found)")
-                continue
+    any_success = False
+
+    for i, suffix in enumerate(FLOAT_FILES):
+        fname = wmo + suffix
+        local = os.path.join(dest, fname)
+
+        if progress_callback is not None:
+            progress_callback((i + 1) / n, fname)
+
+        if os.path.exists(local):
+            saved.append(fname + " (cached)")
+            any_success = True
+            continue
+
+        # Try each mirror until one succeeds.
+        last_err = None
+        downloaded = False
+        for mirror_label, mirror_root in GDAC_MIRRORS:
+            url = f"{mirror_root}/{dac}/{wmo}/{fname}"
             try:
-                with open(local, "wb") as f:
-                    ftp.retrbinary(f"RETR {fname}", f.write)
+                _download_one(url, local)
                 saved.append(fname)
+                any_success = True
+                downloaded = True
+                break
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    # File genuinely doesn't exist for this float (e.g. a Core
+                    # float won't have _Sprof.nc). No point trying other
+                    # mirrors — they have the same content.
+                    last_err = "(not found)"
+                    break
+                last_err = f"(HTTP {e.code} from {mirror_label})"
+                # Continue to next mirror
             except Exception as e:
-                saved.append(f"{fname} (error: {e})")
-        ftp.quit()
-    except Exception as e:
-        raise RuntimeError(f"FTP error: {e}") from e
+                last_err = f"(error from {mirror_label}: {e})"
+                # Continue to next mirror
+
+            # Clean up partial download before trying the next mirror
+            if os.path.exists(local):
+                try:
+                    os.remove(local)
+                except Exception:
+                    pass
+
+        if not downloaded:
+            saved.append(f"{fname} {last_err}")
+
+    if not any_success:
+        raise RuntimeError(
+            f"Could not download any files for float {wmo} from any GDAC "
+            f"mirror. Both IFREMER and US GODAE may be unreachable from this "
+            f"environment."
+        )
     return saved
 
 
