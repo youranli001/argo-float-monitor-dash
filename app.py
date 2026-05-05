@@ -25,6 +25,7 @@ from tabs.tab_main import build_tab_main
 from tabs.tab_metadata import build_tab_metadata
 from tabs.tab_health import build_tab_health
 from tabs.tab_profiles import build_tab_profiles
+from tabs.tab_qc import build_tab_qc
 
 warnings.filterwarnings("ignore")
 
@@ -326,10 +327,11 @@ def render_active_tab(active_tab, wmo, data_dir):
         return build_tab_health(tech, wmo)
     if active_tab == "tab-profiles":
         return build_tab_profiles(prof, sprof, wmo)
+    if active_tab == "tab-qc":
+        return build_tab_qc(prof, sprof, tech, wmo)
 
     # Placeholder for not-yet-ported tabs
     label = {
-        "tab-qc":       "QC",
         "tab-delivery": "Data Delivery",
         "tab-traj":     "Trajectory data",
     }.get(active_tab, active_tab)
@@ -341,7 +343,7 @@ def render_active_tab(active_tab, wmo, data_dir):
         ),
         html.P(
             "Available now: Main Information, Float Metadata, Float Health, "
-            "Profiles. Other tabs coming online incrementally.",
+            "Profiles, QC. Other tabs coming online incrementally.",
             style={"color": "#888"},
         ),
     ], style={"padding": "20px"})
