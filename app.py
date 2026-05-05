@@ -27,6 +27,7 @@ from tabs.tab_health import build_tab_health
 from tabs.tab_profiles import build_tab_profiles
 from tabs.tab_qc import build_tab_qc
 from tabs.tab_delivery import build_tab_delivery
+from tabs.tab_traj import build_tab_traj
 
 warnings.filterwarnings("ignore")
 
@@ -334,23 +335,14 @@ def render_active_tab(active_tab, wmo, data_dir):
         return build_tab_qc(prof, sprof, tech, wmo)
     if active_tab == "tab-delivery":
         return build_tab_delivery(prof, sprof, dtraj, rtraj, wmo)
+    if active_tab == "tab-traj":
+        return build_tab_traj(rtraj, dtraj, wmo)
 
-    # Placeholder for not-yet-ported tabs
-    label = {
-        "tab-traj":     "Trajectory data",
-    }.get(active_tab, active_tab)
-    return html.Div([
-        html.H3(label),
-        html.P(
-            "This tab is not yet ported from the Streamlit reference.",
-            style={"color": "#888"},
-        ),
-        html.P(
-            "Available now: Main Information, Float Metadata, Float Health, "
-            "Profiles, QC, Data Delivery. Trajectory data coming next.",
-            style={"color": "#888"},
-        ),
-    ], style={"padding": "20px"})
+    # Fallback for an unknown tab id (shouldn't happen — kept defensively)
+    return html.Div(
+        f"Unknown tab: {active_tab}",
+        style={"padding": "20px", "color": "#a00"},
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
