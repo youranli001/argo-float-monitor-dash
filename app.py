@@ -24,6 +24,7 @@ import argo_helpers as ah
 from tabs.tab_main import build_tab_main
 from tabs.tab_metadata import build_tab_metadata
 from tabs.tab_health import build_tab_health
+from tabs.tab_profiles import build_tab_profiles
 
 warnings.filterwarnings("ignore")
 
@@ -323,10 +324,11 @@ def render_active_tab(active_tab, wmo, data_dir):
         return build_tab_metadata(meta, prof, sprof, wmo)
     if active_tab == "tab-health":
         return build_tab_health(tech, wmo)
+    if active_tab == "tab-profiles":
+        return build_tab_profiles(prof, sprof, wmo)
 
     # Placeholder for not-yet-ported tabs
     label = {
-        "tab-profiles": "Profiles",
         "tab-qc":       "QC",
         "tab-delivery": "Data Delivery",
         "tab-traj":     "Trajectory data",
@@ -338,8 +340,8 @@ def render_active_tab(active_tab, wmo, data_dir):
             style={"color": "#888"},
         ),
         html.P(
-            "Available now: Main Information, Float Metadata, Float Health. "
-            "Other tabs coming online incrementally.",
+            "Available now: Main Information, Float Metadata, Float Health, "
+            "Profiles. Other tabs coming online incrementally.",
             style={"color": "#888"},
         ),
     ], style={"padding": "20px"})
