@@ -115,9 +115,30 @@ app.layout = html.Div([
                    "fontSize": "13px", "cursor": "pointer"},
         ),
 
-        html.Div(id="fetch-status",
-                 style={"marginTop": "10px", "fontSize": "12px",
-                        "color": "#666", "minHeight": "16px"}),
+        # Loading wrapper: shows a spinner while the fetch callback is running.
+        # Without this the user has no visual feedback during the 1-3 minute FTP
+        # download. (For real progress streaming we'd need background callbacks
+        # with a callback manager — out of scope for MVP.)
+        dcc.Loading(
+            id="fetch-loading",
+            type="circle",
+            color="#0077B6",
+            children=html.Div(
+                id="fetch-status",
+                style={"marginTop": "10px", "fontSize": "12px",
+                       "color": "#666", "minHeight": "20px"},
+            ),
+            style={"marginTop": "8px"},
+        ),
+
+        # Static expectation-setting text. Visible all the time so the user
+        # knows what to expect on first download.
+        html.Div(
+            "First download takes 1–3 minutes (FTP from IFREMER GDAC). "
+            "Subsequent loads of the same WMO are instant.",
+            style={"marginTop": "10px", "fontSize": "11px",
+                   "color": "#999", "lineHeight": "1.4"},
+        ),
 
         html.Hr(style={"margin": "16px 0 8px 0"}),
         html.Div("Data: GDAC / IFREMER",
