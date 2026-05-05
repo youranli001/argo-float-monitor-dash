@@ -1,0 +1,8 @@
+dash==2.18.0
+plotly==5.24.0
+pandas
+numpy
+xarray
+netCDF4
+scipy
+gunicorn
