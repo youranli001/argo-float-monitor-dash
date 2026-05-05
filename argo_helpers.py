@@ -607,6 +607,40 @@ ALL_PARAMS = [
 # Their logic is reimplemented in tabs/tab_*.py modules.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Plain-English meanings for Argo CONFIG_* parameter names. Used by
+# _config_meaning() to enrich the launch / mission configuration tables.
+CONFIG_MEANINGS = {
+    'CONFIG_DownTime_hours':
+        'Time below surface per cycle',
+    'CONFIG_UpTime_hours':
+        'Time at surface for transmission',
+    'CONFIG_ParkPressure_dbar':
+        'Drift depth (park pressure)',
+    'CONFIG_ProfilePressure_dbar':
+        'Maximum profile depth',
+    'CONFIG_AscentToSurfaceTimeOut_hours':
+        'Max ascent time before abort',
+    'CONFIG_CPActivationPressure_dbar':
+        'Continuous-profiling activation depth',
+    'CONFIG_IceDetectionMixedLayerPMax_dbar':
+        'Mixed-layer max depth used for ice detection',
+    'CONFIG_IceDetectionMixedLayerPMin_dbar':
+        'Mixed-layer min depth used for ice detection',
+    'CONFIG_IceDetection_degC':
+        'Temperature threshold for ice detection (abort ascent if colder)',
+    'CONFIG_BitMaskMonthsIceDetectionActive_NUMBER':
+        'Bitmask: months when ice detection is active (12 bits, one per month)',
+    'CONFIG_MissionPreludeTime_hours':
+        'Pre-mission settling time before first cycle',
+    'CONFIG_ParkAndProfileCycleCounter_COUNT':
+        'Park-and-profile cycle counter (1 = full cycle every time)',
+    'CONFIG_BitMask_NUMBER':
+        'Generic bitmask configuration',
+    'CONFIG_ParkAndProfile_NUMBER':
+        'Park-and-profile cycle pattern',
+}
+
+
 def _config_meaning(param_name):
     """Look up plain-English meaning, with prefix-match fallback."""
     if param_name in CONFIG_MEANINGS:

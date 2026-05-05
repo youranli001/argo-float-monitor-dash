@@ -22,6 +22,7 @@ import numpy as np
 
 import argo_helpers as ah
 from tabs.tab_main import build_tab_main
+from tabs.tab_metadata import build_tab_metadata
 
 warnings.filterwarnings("ignore")
 
@@ -316,10 +317,11 @@ def render_active_tab(active_tab, wmo, data_dir):
 
     if active_tab == "tab-main":
         return build_tab_main(meta, prof, sprof, wmo)
+    if active_tab == "tab-meta":
+        return build_tab_metadata(meta, prof, sprof, wmo)
 
     # Placeholder for not-yet-ported tabs
     label = {
-        "tab-meta":     "Float Metadata",
         "tab-health":   "Float Health",
         "tab-profiles": "Profiles",
         "tab-qc":       "QC",
