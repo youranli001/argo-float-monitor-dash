@@ -1,0 +1,4 @@
+aws_region   = "us-west-2"
+alert_email  = "you@example.com"
+github_repo  = "youranli001/argo-float-monitor-dash"
+github_branch = "main"

@@ -21,6 +21,7 @@ import pandas as pd
 import numpy as np
 
 import argo_helpers as ah
+import argo_storage as storage
 from tabs.tab_main import build_tab_main
 from tabs.tab_metadata import build_tab_metadata
 from tabs.tab_health import build_tab_health
@@ -33,7 +34,9 @@ warnings.filterwarnings("ignore")
 
 
 # ── Cache directory for downloaded NetCDF files ───────────────────────────────
-CACHE_DIR = Path("./data")
+# Ephemeral working directory. On AWS this is container-local disk; the
+# durable copy lives in S3 (see argo_storage.py). Override with ARGO_DATA_DIR.
+CACHE_DIR = Path(os.environ.get("ARGO_DATA_DIR", "./data"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -48,6 +51,10 @@ def get_datasets(data_dir: str, wmo: str) -> dict:
     """Return the float's NetCDF datasets, loading from disk only once per WMO."""
     key = (data_dir, wmo)
     if key not in _DATASETS_CACHE:
+        # A new container instance (or a restart) has empty local disk but the
+        # files may already be in S3 from an earlier session — restore first.
+        if not any(Path(data_dir).glob(f"{wmo}_*.nc")):
+            storage.restore_from_s3(wmo, data_dir)
         _DATASETS_CACHE[key] = ah.load_datasets(data_dir, wmo)
     return _DATASETS_CACHE[key]
 
@@ -66,7 +73,13 @@ app = dash.Dash(
     title="Argo Float Monitor",
     update_title=None,
 )
-server = app.server  # for gunicorn / Render
+server = app.server  # for gunicorn / App Runner
+
+
+@server.route("/healthz")
+def healthz():
+    """Liveness probe for App Runner / load balancers."""
+    return {"status": "ok", "s3_cache": storage.s3_enabled()}, 200
 
 
 # ── Styles ────────────────────────────────────────────────────────────────────
@@ -140,8 +153,8 @@ app.layout = html.Div([
         # Static expectation-setting text. Visible all the time so the user
         # knows what to expect on first download.
         html.Div(
-            "First download takes 1–3 minutes (FTP from IFREMER GDAC). "
-            "Subsequent loads of the same WMO are instant.",
+            "First download of a float takes 1–3 minutes (HTTPS from the "
+            "GDAC). Floats already in the S3 cache load in seconds.",
             style={"marginTop": "10px", "fontSize": "11px",
                    "color": "#999", "lineHeight": "1.4"},
         ),
@@ -211,7 +224,8 @@ def fetch_files(n_clicks, wmo):
 
     data_dir = str(CACHE_DIR / wmo)
     try:
-        saved = ah.download_float_files(wmo, dac, data_dir)
+        # local → S3 → GDAC, writing new GDAC downloads back to S3
+        saved = storage.fetch_float(wmo, dac, data_dir)
     except RuntimeError as e:
         return no_update, no_update, str(e)
 
@@ -220,7 +234,9 @@ def fetch_files(n_clicks, wmo):
     invalidate_dataset_cache(data_dir, wmo)
 
     n_files = sum(1 for s in saved if "(error" not in s and "(not found)" not in s)
-    msg = f"✓ {wmo} ready ({n_files} files from {dac.upper()})"
+    n_s3    = sum(1 for s in saved if s.endswith("(s3)"))
+    src = f"{n_s3} from S3, {n_files - n_s3} from {dac.upper()}/local" if n_s3 else dac.upper()
+    msg = f"✓ {wmo} ready ({n_files} files; {src})"
     return wmo, data_dir, msg
 
 
@@ -349,4 +365,4 @@ def render_active_tab(active_tab, wmo, data_dir):
 # Entry point
 # ══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    app.run(debug=True, port=8050)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8050)))

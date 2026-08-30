@@ -2,4 +2,4 @@ venv/
 __pycache__/
 *.pyc
 data/
-.DS_Store
+.DS_Storeold_versions/
