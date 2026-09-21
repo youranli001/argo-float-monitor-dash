@@ -1,6 +1,6 @@
-# App Runner pulls the image from ECR with this role.
+# Lets App Runner pull the container image from ECR.
 resource "aws_iam_role" "apprunner_access" {
-  name = "${var.project}-apprunner-access"
+  name = "argo-float-monitor-apprunner-access"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -17,9 +17,9 @@ resource "aws_iam_role_policy_attachment" "apprunner_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
 }
 
-# The running app uses this role to read and write the S3 cache.
+# Lets the running app use the S3 cache.
 resource "aws_iam_role" "apprunner_instance" {
-  name = "${var.project}-apprunner-instance"
+  name = "argo-float-monitor-apprunner-instance"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

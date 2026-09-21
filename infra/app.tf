@@ -1,12 +1,12 @@
 resource "aws_apprunner_auto_scaling_configuration_version" "app" {
-  auto_scaling_configuration_name = "${var.project}-asc"
+  auto_scaling_configuration_name = "argo-float-monitor-asc"
   min_size                        = 1
   max_size                        = 2
   max_concurrency                 = 50
 }
 
 resource "aws_apprunner_service" "app" {
-  service_name = var.project
+  service_name = "argo-float-monitor"
 
   source_configuration {
     auto_deployments_enabled = true
@@ -24,7 +24,7 @@ resource "aws_apprunner_service" "app" {
         runtime_environment_variables = {
           ARGO_S3_BUCKET      = aws_s3_bucket.cache.bucket
           ARGO_S3_PREFIX      = "gdac-cache"
-          ARGO_CACHE_TTL_DAYS = tostring(var.cache_ttl_days)
+          ARGO_CACHE_TTL_DAYS = "7"
           ARGO_DATA_DIR       = "/tmp/argo_data"
         }
       }

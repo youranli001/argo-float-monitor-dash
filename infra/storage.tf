@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "cache" {
-  bucket = "${var.project}-cache-${data.aws_caller_identity.current.account_id}"
+  bucket = "argo-float-monitor-cache-${data.aws_caller_identity.current.account_id}"
 }
 
 resource "aws_s3_bucket_public_access_block" "cache" {
@@ -11,7 +11,7 @@ resource "aws_s3_bucket_public_access_block" "cache" {
 }
 
 resource "aws_ecr_repository" "app" {
-  name                 = var.project
+  name                 = "argo-float-monitor"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
