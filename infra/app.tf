@@ -1,7 +1,7 @@
 resource "aws_apprunner_auto_scaling_configuration_version" "app" {
   auto_scaling_configuration_name = "${var.project}-asc"
   min_size                        = 1
-  max_size                        = var.max_instances
+  max_size                        = 2
   max_concurrency                 = 50
 }
 
@@ -32,8 +32,8 @@ resource "aws_apprunner_service" "app" {
   }
 
   instance_configuration {
-    cpu               = var.instance_cpu
-    memory            = var.instance_memory
+    cpu               = "1024"
+    memory            = "2048"
     instance_role_arn = aws_iam_role.apprunner_instance.arn
   }
 
@@ -47,6 +47,5 @@ resource "aws_apprunner_service" "app" {
   }
 
   auto_scaling_configuration_arn = aws_apprunner_auto_scaling_configuration_version.app.arn
-
-  depends_on = [aws_iam_role_policy_attachment.apprunner_ecr]
+  depends_on                     = [aws_iam_role_policy_attachment.apprunner_ecr]
 }
