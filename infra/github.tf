@@ -1,33 +1,30 @@
-# Optional: GitHub Actions gets temporary AWS credentials through OIDC.
+# Lets GitHub Actions push new images to ECR without a stored AWS access key.
 resource "aws_iam_openid_connect_provider" "github" {
-  count           = var.github_repo == "" ? 0 : 1
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
 resource "aws_iam_role" "github_deploy" {
-  count = var.github_repo == "" ? 0 : 1
-  name  = "${var.project}-github-deploy"
+  name = "argo-float-monitor-github-deploy"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.github[0].arn }
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/${var.github_branch}" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:youranli001/argo-float-monitor-dash:ref:refs/heads/main" }
       }
     }]
   })
 }
 
 resource "aws_iam_role_policy" "github_ecr_push" {
-  count = var.github_repo == "" ? 0 : 1
-  name  = "ecr-push"
-  role  = aws_iam_role.github_deploy[0].id
+  name = "ecr-push"
+  role = aws_iam_role.github_deploy.id
 
   policy = jsonencode({
     Version = "2012-10-17"

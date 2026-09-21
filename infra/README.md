@@ -1,10 +1,10 @@
-# Terraform infrastructure
+# AWS infrastructure
 
-This directory contains the AWS infrastructure for the Argo dashboard.
+Terraform defines the AWS resources used by the dashboard:
 
 - `storage.tf`: S3 cache and ECR repository
-- `iam.tf`: permissions for App Runner
+- `iam.tf`: App Runner permissions
 - `app.tf`: App Runner service
-- `github.tf`: optional GitHub Actions OIDC access
+- `github.tf`: GitHub Actions OIDC deployment role
 
-`terraform.tfstate`, `terraform.tfvars`, and `.terraform/` stay local. The provider lock file should be committed.
+Run `terraform plan` before applying changes.
